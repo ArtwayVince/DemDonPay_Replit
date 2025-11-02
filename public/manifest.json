@@ -1,0 +1,27 @@
+{
+  "name": "Dem Don Pay - Real-time Salary Alerts",
+  "short_name": "Dem Don Pay",
+  "description": "Know when salary enter — before you ask! Track salary payments across Nigerian organizations in real-time.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity", "social"],
+  "lang": "en-NG",
+  "dir": "ltr"
+}

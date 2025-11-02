@@ -1,0 +1,79 @@
+Build a complete mobile-first web app called "Dem Don Pay" — a real-time salary alert platform for Nigerians. The app lets users register with their phone number, search and select their employer (government or private), report when their salary has been paid, see live percentage of people paid per organization, chat with others in organization-specific rooms, and get push notifications when salaries start entering.
+
+Key requirements:
+
+1. **User Registration & Login**
+   - Use phone number + OTP verification (via SMS)
+   - No email or password needed
+
+2. **Pre-Popped List of 100+ Nigerian Organizations**
+   - Include major federal and state government bodies, banks, telecoms, universities, hospitals, and private companies
+   - Examples: CBN, NNPC, FIRS, Lagos State Government, UNILAG, GTBank, MTN, Dangote, Zenith Bank, Airtel, etc.
+   - Allow users to search by name, state, or sector
+   - Include option to "Add Custom Organization" if not listed
+
+3. **Searchable Organization Picker**
+   - Type-to-search (e.g. typing "lagos" shows Lagos State, UNILAG, LUTH)
+   - Show organization type (Government/Private), state, and sector
+
+4. **Salary Reporting**
+   - Big green button: "SALARY DON ENTER! ✅"
+   - User selects date paid (default: today)
+   - Optional: enter amount and upload proof (screenshot)
+   - Reports can be anonymous
+
+5. **Live Dashboard**
+   - Show top organizations with % paid (e.g. "Zenith Bank: 87% PAID (124 reports)")
+   - Progress bar (green = high %, red = low)
+   - Last reported payment time
+
+6. **Organization Page**
+   - Live % paid with chart
+   - List of recent reports (anonymous by default)
+   - Real-time chat room: "Why dem never pay?" or "Salary don land!"
+
+7. **Follow & Push Notifications**
+   - Users can follow organizations
+   - Send push alert when 70%+ of users report paid: "Dem don pay for GTBank! 92% confirmed 🎉"
+
+8. **Chat System**
+   - One chat room per organization
+   - Real-time messaging
+   - Simple moderation (report spam)
+
+9. **UI & Tone**
+   - Mobile-first, fast, clean
+   - Use Nigerian pidgin in buttons and alerts:
+     - "Salary Don Enter! ✅"
+     - "Why Dem Delay? 😤"
+     - "Dem don pay o! 💃"
+   - Colors: Green (paid), Red (delayed), White background
+   - Works offline as PWA (add to home screen)
+
+10. **Tech Stack**
+    - Frontend: React + Tailwind CSS
+    - Backend: Node.js + Express
+    - Database: SQLite or Firebase
+    - Real-time: Socket.io or Firebase
+    - Push: Web Push + FCM
+    - Deployable on Vercel/Render
+
+11. **Seed Data**
+    - Pre-load 100+ real Nigerian organizations on first run
+    - Include federal MDAs, 36 state governments, top banks, telecoms, universities, hospitals, and corporates
+
+12. **Bonus**
+    - Share button: "Dem don pay @GTBank! Check now → [link]"
+    - Dark mode
+    - Admin panel to approve custom orgs
+
+Generate full working code with:
+- Folder structure
+- package.json
+- Firebase config
+- Preloaded organization database
+- Search, report, chat, and notification logic
+- Responsive UI with Nigerian vibe
+- Deploy instructions
+
+App tagline: "Know when salary enter — before you ask!"

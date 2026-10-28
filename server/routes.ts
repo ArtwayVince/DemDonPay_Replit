@@ -83,6 +83,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== Auth Routes =====
+
+  // Development-only access to a fixed demo account. This route is not
+  // registered in production and cannot be used to impersonate arbitrary users.
+  if (process.env.NODE_ENV === "development") {
+    app.post("/api/auth/dev-login", async (_req, res) => {
+      try {
+        const phoneNumber = "08000000000";
+        let user = await storage.getUserByPhone(phoneNumber);
+
+        if (!user) {
+          user = await storage.createUser({
+            phoneNumber,
+            displayName: "Demo User",
+          });
+        }
+
+        await storage.verifyUser(user.id);
+        res.json({
+          user: {
+            id: user.id,
+            phoneNumber: user.phoneNumber,
+            displayName: user.displayName,
+          },
+        });
+      } catch (error) {
+        console.error("Development demo login error:", error);
+        res.status(500).json({ error: "Failed to log in to the demo account" });
+      }
+    });
+  }
   
   // Register or login with phone number
   app.post("/api/auth/send-otp", async (req, res) => {

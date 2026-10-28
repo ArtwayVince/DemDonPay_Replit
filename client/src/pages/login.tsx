@@ -1,22 +1,47 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Phone, Shield } from "lucide-react";
+import { Phone, Shield, UserRound } from "lucide-react";
 import appIcon from "@assets/generated_images/App_icon_with_naira_and_checkmark_bbb97aab.png";
 
 export default function LoginPage() {
-  const [, setLocation] = useLocation();
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const saveUserAndContinue = (user: { id: string; phoneNumber: string; displayName: string | null }) => {
+    localStorage.setItem("isAuthenticated", "true");
+    localStorage.setItem("userId", user.id);
+    localStorage.setItem("phoneNumber", user.phoneNumber);
+    if (user.displayName) {
+      localStorage.setItem("displayName", user.displayName);
+    }
+    window.location.assign("/");
+  };
+
+  const handleDemoLogin = async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+    try {
+      const { loginToDemoAccount } = await import("@/lib/api");
+      const { user } = await loginToDemoAccount();
+      saveUserAndContinue(user);
+    } catch (error) {
+      console.error("Error logging in to demo account:", error);
+      setErrorMessage("Demo login is unavailable. Use phone verification instead.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage("");
     
     try {
       const { sendOtp } = await import("@/lib/api");
@@ -24,6 +49,7 @@ export default function LoginPage() {
       setStep("otp");
     } catch (error) {
       console.error("Error sending OTP:", error);
+      setErrorMessage("Could not send an OTP. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -32,22 +58,15 @@ export default function LoginPage() {
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setErrorMessage("");
     
     try {
       const { verifyOtp } = await import("@/lib/api");
       const { user } = await verifyOtp(phoneNumber, otp);
-      
-      // Store user session
-      localStorage.setItem("isAuthenticated", "true");
-      localStorage.setItem("userId", user.id);
-      localStorage.setItem("phoneNumber", user.phoneNumber);
-      if (user.displayName) {
-        localStorage.setItem("displayName", user.displayName);
-      }
-      
-      setLocation("/");
+      saveUserAndContinue(user);
     } catch (error) {
       console.error("Error verifying OTP:", error);
+      setErrorMessage("Could not verify that code. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -146,6 +165,29 @@ export default function LoginPage() {
                   Change Phone Number
                 </Button>
               </form>
+            )}
+            {errorMessage && (
+              <p role="alert" className="mt-4 text-sm text-destructive">
+                {errorMessage}
+              </p>
+            )}
+            {step === "phone" && import.meta.env.DEV && (
+              <div className="mt-5 border-t pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleDemoLogin}
+                  disabled={isLoading}
+                  data-testid="button-demo-login"
+                >
+                  <UserRound className="mr-2 h-4 w-4" />
+                  {isLoading ? "Opening demo..." : "Continue with demo account"}
+                </Button>
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Development preview only
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

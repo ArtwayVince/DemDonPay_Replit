@@ -42,6 +42,12 @@ export const verifyOtp = async (phoneNumber: string, otpCode: string): Promise<{
   return response.json();
 };
 
+export const loginToDemoAccount = async (): Promise<{ user: User }> => {
+  const response = await fetch("/api/auth/dev-login", { method: "POST" });
+  if (!response.ok) throw new Error("Demo login is only available in development");
+  return response.json();
+};
+
 // Organization APIs
 export const getOrganizations = async (filters?: {
   search?: string;

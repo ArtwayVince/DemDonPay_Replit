@@ -1,18 +1,21 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Building2, Plus } from "lucide-react";
 import { OrganizationSearch } from "@/components/organization-search";
 import { OrganizationCard } from "@/components/organization-card";
 import { OrganizationCardSkeleton } from "@/components/loading-skeleton";
 import { EmptyState } from "@/components/empty-state";
-import { Button } from "@/components/ui/button";
-import { getOrganizations } from "@/lib/api";
+import { SalaryReportButton } from "@/components/salary-report-button";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
+import { createReport, getOrganizations } from "@/lib/api";
 
 export default function OrganizationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [selectedState, setSelectedState] = useState<string | null>(null);
+  const { toast } = useToast();
   
   const { data: organizations = [], isLoading } = useQuery({
     queryKey: ['/api/organizations', searchQuery, selectedType, selectedSector, selectedState],
@@ -24,6 +27,25 @@ export default function OrganizationsPage() {
     }),
   });
 
+  const reportMutation = useMutation({
+    mutationFn: createReport,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/reports"] });
+      toast({
+        title: "Report submitted!",
+        description: "Your salary report has been recorded.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Could not submit report",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredOrganizations = organizations;
 
   return (
@@ -33,10 +55,17 @@ export default function OrganizationsPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-4">
             <h1 className="font-accent text-2xl font-bold text-foreground">Organizations</h1>
-            <Button variant="outline" size="sm" data-testid="button-add-custom">
-              <Plus className="w-4 h-4 mr-1" />
-              Add Custom
-            </Button>
+            <SalaryReportButton
+              organizations={filteredOrganizations}
+              onSubmit={(data) => reportMutation.mutate(data)}
+              isPending={reportMutation.isPending}
+              triggerLabel="Add Report"
+              triggerIcon={<Plus className="w-4 h-4" />}
+              triggerVariant="outline"
+              triggerSize="sm"
+              triggerClassName="gap-1"
+              triggerDisabled={isLoading}
+            />
           </div>
           <OrganizationSearch
             searchQuery={searchQuery}

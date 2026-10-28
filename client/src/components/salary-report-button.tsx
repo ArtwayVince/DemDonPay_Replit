@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CheckCircle2, Calendar, DollarSign, Upload, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,31 +21,52 @@ import { Input } from "@/components/ui/input";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertReportSchema } from "@shared/schema";
+import { insertReportSchema, type Organization } from "@shared/schema";
 import { format } from "date-fns";
 import { z } from "zod";
 
 interface SalaryReportButtonProps {
-  organizationId: string;
-  organizationName: string;
+  organizationId?: string;
+  organizationName?: string;
+  organizations?: Array<Pick<Organization, "id" | "name">>;
   onSubmit: (data: z.infer<typeof insertReportSchema>) => void;
   isPending?: boolean;
+  triggerLabel?: string;
+  triggerIcon?: ReactNode;
+  triggerVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost";
+  triggerSize?: "default" | "sm" | "lg" | "icon";
+  triggerClassName?: string;
+  triggerDisabled?: boolean;
 }
 
 export function SalaryReportButton({ 
   organizationId, 
   organizationName, 
+  organizations,
   onSubmit,
-  isPending 
+  isPending,
+  triggerLabel,
+  triggerIcon,
+  triggerVariant,
+  triggerSize,
+  triggerClassName,
+  triggerDisabled,
 }: SalaryReportButtonProps) {
   const [open, setOpen] = useState(false);
 
   const form = useForm<z.infer<typeof insertReportSchema>>({
     resolver: zodResolver(insertReportSchema),
     defaultValues: {
-      organizationId,
+      organizationId: organizationId || "",
       datePaid: new Date().toISOString(),
       isAnonymous: true,
     },
@@ -59,13 +81,15 @@ export function SalaryReportButton({
   return (
     <>
       <Button
-        size="lg"
-        className="w-full h-14 text-base font-bold bg-primary hover:bg-primary text-primary-foreground shadow-lg"
+        size={triggerSize ?? "lg"}
+        variant={triggerVariant ?? "default"}
+        className={triggerClassName ?? "w-full h-14 text-base font-bold bg-primary hover:bg-primary text-primary-foreground shadow-lg"}
         onClick={() => setOpen(true)}
-        data-testid="button-report-salary"
+        disabled={triggerDisabled || (Boolean(organizations) && organizations!.length === 0)}
+        data-testid={organizations ? "button-add-report" : "button-report-salary"}
       >
-        <CheckCircle2 className="w-5 h-5 mr-2" />
-        SALARY DON ENTER!
+        {triggerIcon ?? <CheckCircle2 className="w-5 h-5 mr-2" />}
+        {triggerLabel ?? "SALARY DON ENTER!"}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -73,12 +97,41 @@ export function SalaryReportButton({
           <DialogHeader>
             <DialogTitle className="font-accent text-xl">Report Salary Payment</DialogTitle>
             <DialogDescription>
-              Confirm salary payment for {organizationName}
+              {organizations
+                ? "Choose your company and confirm the salary payment."
+                : `Confirm salary payment for ${organizationName}`}
             </DialogDescription>
           </DialogHeader>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+              {organizations && (
+                <FormField
+                  control={form.control}
+                  name="organizationId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value || ""}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-report-organization">
+                            <SelectValue placeholder="Choose your company" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {organizations.map((organization) => (
+                            <SelectItem key={organization.id} value={organization.id}>
+                              {organization.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               {/* Date Paid */}
               <FormField
                 control={form.control}

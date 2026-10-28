@@ -37,6 +37,7 @@ export const reports = pgTable("reports", {
   amount: numeric("amount", { precision: 15, scale: 2 }), // Optional amount
   proofUrl: text("proof_url"), // Optional screenshot proof
   isAnonymous: boolean("is_anonymous").notNull().default(true),
+  reporterRole: text("reporter_role").notNull().default("employee"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -147,8 +148,10 @@ export const insertReportSchema = createInsertSchema(reports).pick({
   amount: true,
   proofUrl: true,
   isAnonymous: true,
+  reporterRole: true,
 }).extend({
   datePaid: z.string().or(z.date()),
+  reporterRole: z.enum(["employee", "representative"]).default("employee"),
 });
 
 export const insertMessageSchema = createInsertSchema(messages).pick({

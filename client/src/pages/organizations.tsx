@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { SalaryReportButton } from "@/components/salary-report-button";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
-import { createReport, getOrganizations } from "@/lib/api";
+import { createOrganization, createReport, getOrganizations } from "@/lib/api";
 
 export default function OrganizationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -46,6 +46,24 @@ export default function OrganizationsPage() {
     },
   });
 
+  const createOrganizationMutation = useMutation({
+    mutationFn: createOrganization,
+    onSuccess: () => {
+      setSearchQuery("");
+      setSelectedType(null);
+      setSelectedSector(null);
+      setSelectedState(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Could not add company",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredOrganizations = organizations;
 
   return (
@@ -57,8 +75,9 @@ export default function OrganizationsPage() {
             <h1 className="font-accent text-2xl font-bold text-foreground">Organizations</h1>
             <SalaryReportButton
               organizations={filteredOrganizations}
-              onSubmit={(data) => reportMutation.mutate(data)}
-              isPending={reportMutation.isPending}
+              onSubmit={(data) => reportMutation.mutateAsync(data)}
+              onCreateOrganization={(data) => createOrganizationMutation.mutateAsync(data)}
+              isPending={reportMutation.isPending || createOrganizationMutation.isPending}
               triggerLabel="Add Report"
               triggerIcon={<Plus className="w-4 h-4" />}
               triggerVariant="outline"

@@ -52,11 +52,18 @@ export function ReportCard({ report }: ReportCardProps) {
           Confirmed salary payment on {format(new Date(report.datePaid), "PPP")}
         </p>
 
-        {report.amount && (
-          <Badge variant="outline" className="text-xs font-semibold">
-            ₦{parseFloat(report.amount).toLocaleString()}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="text-xs">
+            {report.reporterRole === "representative"
+              ? "Representative · self-reported"
+              : "Employee"}
           </Badge>
-        )}
+          {report.amount && (
+            <Badge variant="outline" className="text-xs font-semibold">
+              ₦{parseFloat(report.amount).toLocaleString()}
+            </Badge>
+          )}
+        </div>
       </div>
     </div>
   );

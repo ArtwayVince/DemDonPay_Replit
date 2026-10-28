@@ -3,6 +3,7 @@ import { useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Building2, Heart, Share2, TrendingUp, Users, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { SalaryReportButton } from "@/components/salary-report-button";
@@ -184,6 +185,14 @@ export default function OrganizationDetailPage() {
                 <span>{organization.type === "government" ? "Government" : "Private"}</span>
                 <span>•</span>
                 <span className="capitalize">{organization.sector}</span>
+                {organization.isCustom && !organization.isApproved && (
+                  <>
+                    <span>•</span>
+                    <Badge variant="secondary" className="text-xs">
+                      Community-added · unverified
+                    </Badge>
+                  </>
+                )}
                 {organization.state && (
                   <>
                     <span>•</span>

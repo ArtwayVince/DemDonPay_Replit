@@ -1,0 +1,1 @@
+- [Community organization trust](community-organization-trust.md) — new organizations appear immediately as unverified; representative claims remain self-reported unless verified.

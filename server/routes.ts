@@ -251,7 +251,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/organizations", async (req, res) => {
     try {
       const validated = insertOrganizationSchema.parse(req.body);
-      const org = await storage.createOrganization(validated);
+      const name = validated.name.trim();
+      if (!name) {
+        return res.status(400).json({ error: "Organization name is required" });
+      }
+
+      const existingOrganization = await storage.getOrganizationByName(name);
+      if (existingOrganization) {
+        return res.json(existingOrganization);
+      }
+
+      const org = await storage.createOrganization({ ...validated, name });
       res.json(org);
     } catch (error) {
       if (error instanceof z.ZodError) {

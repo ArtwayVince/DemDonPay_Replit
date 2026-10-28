@@ -27,6 +27,7 @@ export interface IStorage {
   }): Promise<OrganizationWithStats[]>;
   getOrganization(id: string): Promise<Organization | undefined>;
   getOrganizationBySlug(slug: string): Promise<Organization | undefined>;
+  getOrganizationByName(name: string): Promise<Organization | undefined>;
   getOrganizationWithStats(id: string, userId?: string): Promise<OrganizationWithStats | undefined>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
   
@@ -183,6 +184,15 @@ export class DatabaseStorage implements IStorage {
     return org || undefined;
   }
 
+  async getOrganizationByName(name: string): Promise<Organization | undefined> {
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(sql`lower(${organizations.name}) = ${name.trim().toLowerCase()}`)
+      .limit(1);
+    return org || undefined;
+  }
+
   async getOrganizationWithStats(id: string, userId?: string): Promise<OrganizationWithStats | undefined> {
     const org = await this.getOrganization(id);
     if (!org) return undefined;
@@ -203,7 +213,12 @@ export class DatabaseStorage implements IStorage {
 
   async createOrganization(insertOrg: InsertOrganization): Promise<Organization> {
     // Generate slug from name
-    const slug = insertOrg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const baseSlug = insertOrg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || "organization";
+    let slug = baseSlug;
+    let suffix = 2;
+    while (await this.getOrganizationBySlug(slug)) {
+      slug = `${baseSlug}-${suffix++}`;
+    }
     
     const [org] = await db
       .insert(organizations)
@@ -219,9 +234,16 @@ export class DatabaseStorage implements IStorage {
 
   // Reports
   async createReport(insertReport: InsertReport & { userId: string }): Promise<Report> {
+    const datePaid = insertReport.datePaid instanceof Date
+      ? insertReport.datePaid
+      : new Date(insertReport.datePaid);
+    if (Number.isNaN(datePaid.getTime())) {
+      throw new Error("Invalid salary payment date");
+    }
+
     const [report] = await db
       .insert(reports)
-      .values(insertReport)
+      .values({ ...insertReport, datePaid })
       .returning();
     
     // Check if we should trigger notifications

@@ -58,6 +58,11 @@ export function OrganizationCard({ organization }: OrganizationCardProps) {
                 <Badge variant="outline" className="text-xs">
                   {organization.type === "government" ? "Government" : "Private"}
                 </Badge>
+                {organization.isCustom && !organization.isApproved && (
+                  <Badge variant="secondary" className="text-xs">
+                    Community-added · unverified
+                  </Badge>
+                )}
                 {organization.state && (
                   <span className="text-xs text-muted-foreground">{organization.state}</span>
                 )}

@@ -10,6 +10,7 @@ import OrganizationsPage from "@/pages/organizations";
 import OrganizationDetailPage from "@/pages/organization-detail";
 import ProfilePage from "@/pages/profile";
 import NotificationsPage from "@/pages/notifications";
+import OrganizationModerationPage from "@/pages/organization-moderation";
 import LoginPage from "@/pages/login";
 import NotFound from "@/pages/not-found";
 
@@ -31,6 +32,9 @@ function Router() {
       </Route>
       <Route path="/org/:slug">
         {() => <PrivateRoute component={OrganizationDetailPage} />}
+      </Route>
+      <Route path="/moderation/organizations">
+        {() => <PrivateRoute component={OrganizationModerationPage} />}
       </Route>
       <Route path="/notifications">
         {() => <PrivateRoute component={NotificationsPage} />}

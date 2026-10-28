@@ -85,7 +85,47 @@ export const createOrganization = async (data: InsertOrganization): Promise<Orga
     },
     body: JSON.stringify(data),
   });
-  if (!response.ok) throw new Error("Failed to create organization");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error || "Failed to create organization");
+  }
+  return response.json();
+};
+
+export type OrganizationModerationAction =
+  | { action: "save"; name: string; type: "government" | "private"; sector: string; state: string | null }
+  | { action: "approve"; name: string; type: "government" | "private"; sector: string; state: string | null }
+  | { action: "hide" }
+  | { action: "restore" };
+
+export const getModeratorStatus = async (): Promise<{ isModerator: boolean }> => {
+  const response = await fetch("/api/moderation/status", { headers: getUserHeaders() });
+  if (!response.ok) throw new Error("Could not check moderator access");
+  return response.json();
+};
+
+export const getCommunityOrganizationsForModeration = async (): Promise<Organization[]> => {
+  const response = await fetch("/api/moderation/organizations", { headers: getUserHeaders() });
+  if (!response.ok) throw new Error("Could not load community submissions");
+  return response.json();
+};
+
+export const moderateOrganization = async (
+  organizationId: string,
+  data: OrganizationModerationAction,
+): Promise<Organization> => {
+  const response = await fetch(`/api/moderation/organizations/${organizationId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...getUserHeaders(),
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error || "Could not update community submission");
+  }
   return response.json();
 };
 
@@ -141,7 +181,7 @@ export const unfollowOrganization = async (organizationId: string) => {
   return response.json();
 };
 
-export const getUserFollows = async (): Promise<Organization[]> => {
+export const getUserFollows = async (): Promise<OrganizationWithStats[]> => {
   const response = await fetch("/api/follows", {
     headers: getUserHeaders(),
   });

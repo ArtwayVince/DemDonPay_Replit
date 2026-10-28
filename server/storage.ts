@@ -8,7 +8,7 @@ import {
   type Notification
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, and, gte } from "drizzle-orm";
+import { eq, desc, asc, sql, and, gte } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -30,6 +30,11 @@ export interface IStorage {
   getOrganizationByName(name: string): Promise<Organization | undefined>;
   getOrganizationWithStats(id: string, userId?: string): Promise<OrganizationWithStats | undefined>;
   createOrganization(org: InsertOrganization): Promise<Organization>;
+  getCommunityOrganizationsForModeration(): Promise<Organization[]>;
+  updateCommunityOrganization(
+    id: string,
+    updates: Partial<Pick<Organization, "name" | "type" | "sector" | "state" | "isApproved" | "isHidden">>
+  ): Promise<Organization | undefined>;
   
   // Reports
   createReport(report: InsertReport & { userId: string }): Promise<Report>;
@@ -47,7 +52,7 @@ export interface IStorage {
   // Follows
   followOrganization(userId: string, organizationId: string): Promise<Follow>;
   unfollowOrganization(userId: string, organizationId: string): Promise<void>;
-  getUserFollows(userId: string): Promise<Organization[]>;
+  getUserFollows(userId: string): Promise<OrganizationWithStats[]>;
   isFollowing(userId: string, organizationId: string): Promise<boolean>;
   
   // Notifications
@@ -95,7 +100,7 @@ export class DatabaseStorage implements IStorage {
     sector?: string;
     state?: string;
   }): Promise<OrganizationWithStats[]> {
-    const conditions = [];
+    const conditions = [eq(organizations.isHidden, false)];
     
     if (filters?.type) {
       conditions.push(eq(organizations.type, filters.type));
@@ -118,6 +123,7 @@ export class DatabaseStorage implements IStorage {
         logoUrl: organizations.logoUrl,
         isCustom: organizations.isCustom,
         isApproved: organizations.isApproved,
+        isHidden: organizations.isHidden,
         createdAt: organizations.createdAt,
         totalReports: sql<number>`count(distinct ${reports.id})`,
         lastReportedAt: sql<string>`max(${reports.createdAt})`,
@@ -195,7 +201,7 @@ export class DatabaseStorage implements IStorage {
 
   async getOrganizationWithStats(id: string, userId?: string): Promise<OrganizationWithStats | undefined> {
     const org = await this.getOrganization(id);
-    if (!org) return undefined;
+    if (!org || org.isHidden) return undefined;
 
     const stats = await this.getOrganizationStats(id);
     
@@ -230,6 +236,46 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return org;
+  }
+
+  async getCommunityOrganizationsForModeration(): Promise<Organization[]> {
+    return db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.isCustom, true))
+      .orderBy(asc(organizations.isApproved), asc(organizations.isHidden), desc(organizations.createdAt));
+  }
+
+  async updateCommunityOrganization(
+    id: string,
+    updates: Partial<Pick<Organization, "name" | "type" | "sector" | "state" | "isApproved" | "isHidden">>
+  ): Promise<Organization | undefined> {
+    const [current] = await db
+      .select()
+      .from(organizations)
+      .where(and(eq(organizations.id, id), eq(organizations.isCustom, true)))
+      .limit(1);
+    if (!current) return undefined;
+
+    const values: Partial<Organization> = { ...updates };
+    if (updates.name && updates.name !== current.name) {
+      const baseSlug = updates.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "organization";
+      let slug = baseSlug;
+      let suffix = 2;
+      let existing = await this.getOrganizationBySlug(slug);
+      while (existing && existing.id !== id) {
+        slug = `${baseSlug}-${suffix++}`;
+        existing = await this.getOrganizationBySlug(slug);
+      }
+      values.slug = slug;
+    }
+
+    const [updated] = await db
+      .update(organizations)
+      .set(values)
+      .where(and(eq(organizations.id, id), eq(organizations.isCustom, true)))
+      .returning();
+    return updated;
   }
 
   // Reports
@@ -351,16 +397,20 @@ export class DatabaseStorage implements IStorage {
       );
   }
 
-  async getUserFollows(userId: string): Promise<Organization[]> {
+  async getUserFollows(userId: string): Promise<OrganizationWithStats[]> {
     const userFollows = await db
       .select({
         organization: organizations,
       })
       .from(follows)
       .innerJoin(organizations, eq(follows.organizationId, organizations.id))
-      .where(eq(follows.userId, userId));
+      .where(and(eq(follows.userId, userId), eq(organizations.isHidden, false)));
 
-    return userFollows.map(f => f.organization);
+    return Promise.all(userFollows.map(async ({ organization }) => ({
+      ...organization,
+      ...await this.getOrganizationStats(organization.id),
+      isFollowing: true,
+    })));
   }
 
   async isFollowing(userId: string, organizationId: string): Promise<boolean> {

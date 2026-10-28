@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { User, Heart, FileText, LogOut, Moon, Sun } from "lucide-react";
+import { User, Heart, FileText, LogOut, Moon, Sun, ClipboardCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/stats-card";
@@ -8,10 +8,15 @@ import { OrganizationCard } from "@/components/organization-card";
 import { EmptyState } from "@/components/empty-state";
 import { StatsCardSkeleton, OrganizationCardSkeleton } from "@/components/loading-skeleton";
 import { useLocation } from "wouter";
+import { getModeratorStatus } from "@/lib/api";
 
 export default function ProfilePage() {
   const [, setLocation] = useLocation();
   const [isDark, setIsDark] = useState(false);
+  const { data: moderatorStatus } = useQuery({
+    queryKey: ["/api/moderation/status"],
+    queryFn: getModeratorStatus,
+  });
   const phoneNumber = localStorage.getItem("phoneNumber") || "08012345678";
   const displayName = localStorage.getItem("displayName") || `User ${phoneNumber.slice(-4)}`;
   
@@ -54,6 +59,17 @@ export default function ProfilePage() {
                   {isDark ? <Sun className="w-4 h-4 mr-1" /> : <Moon className="w-4 h-4 mr-1" />}
                   {isDark ? "Light Mode" : "Dark Mode"}
                 </Button>
+                {moderatorStatus?.isModerator && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setLocation("/moderation/organizations")}
+                    data-testid="button-review-organizations"
+                  >
+                    <ClipboardCheck className="w-4 h-4 mr-1" />
+                    Review companies
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" onClick={handleLogout} data-testid="button-logout">
                   <LogOut className="w-4 h-4 mr-1" />
                   Logout

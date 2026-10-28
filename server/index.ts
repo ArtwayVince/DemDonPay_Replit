@@ -52,7 +52,7 @@ app.use((req, res, next) => {
   try {
     await seedOrganizations();
   } catch (error) {
-    log("Warning: Failed to seed organizations", error);
+    log("Warning: Failed to seed organizations", error instanceof Error ? error.message : String(error));
   }
   
   const server = await registerRoutes(app);

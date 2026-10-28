@@ -1,8 +1,14 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
-import { insertReportSchema, insertMessageSchema, insertOrganizationSchema, insertUserSchema } from "@shared/schema";
+import {
+  insertReportSchema,
+  insertMessageSchema,
+  insertOrganizationSchema,
+  insertUserSchema,
+  moderateOrganizationSchema,
+} from "@shared/schema";
 import { z } from "zod";
 
 // WebSocket connection tracking
@@ -17,6 +23,25 @@ function broadcastUpdate(data: any) {
       client.send(message);
     }
   });
+}
+
+async function requireModerator(req: Request, res: Response): Promise<boolean> {
+  const userId = req.get("x-user-id");
+  if (!userId) {
+    res.status(401).json({ error: "Not authenticated" });
+    return false;
+  }
+
+  const user = await storage.getUser(userId);
+  if (!user?.isVerified) {
+    res.status(401).json({ error: "Not authenticated" });
+    return false;
+  }
+  if (!user.isModerator) {
+    res.status(403).json({ error: "Moderator access required" });
+    return false;
+  }
+  return true;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -35,12 +60,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (message.type === 'join') {
           // Join organization room
-          currentOrganizationId = message.organizationId;
-          if (!organizationConnections.has(currentOrganizationId)) {
-            organizationConnections.set(currentOrganizationId, new Set());
+          const organizationId = message.organizationId;
+          if (typeof organizationId !== "string" || !organizationId) return;
+          const organization = await storage.getOrganization(organizationId);
+          if (!organization || organization.isHidden) return;
+          currentOrganizationId = organizationId;
+          if (!organizationConnections.has(organizationId)) {
+            organizationConnections.set(organizationId, new Set());
           }
-          organizationConnections.get(currentOrganizationId)!.add(ws);
+          organizationConnections.get(organizationId)!.add(ws);
         } else if (message.type === 'message' && currentOrganizationId) {
+          const organization = await storage.getOrganization(currentOrganizationId);
+          if (!organization || organization.isHidden) return;
+
           // Save message to database
           const savedMessage = await storage.createMessage({
             userId: message.userId,
@@ -188,10 +220,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "User not found" });
       }
 
-      res.json(user);
+      res.json({
+        id: user.id,
+        phoneNumber: user.phoneNumber,
+        displayName: user.displayName,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt,
+      });
     } catch (error) {
       console.error('Get user error:', error);
       res.status(500).json({ error: "Failed to get user" });
+    }
+  });
+
+  app.get("/api/moderation/status", async (req, res) => {
+    try {
+      const userId = req.get("x-user-id");
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user?.isVerified) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      res.json({ isModerator: user.isModerator });
+    } catch (error) {
+      console.error("Get moderator status error:", error);
+      res.status(500).json({ error: "Failed to get moderator status" });
     }
   });
 
@@ -240,10 +296,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const orgWithStats = await storage.getOrganizationWithStats(org.id, userId);
+      if (!orgWithStats) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       res.json(orgWithStats);
     } catch (error) {
       console.error('Get organization error:', error);
       res.status(500).json({ error: "Failed to get organization" });
+    }
+  });
+
+  app.get("/api/moderation/organizations", async (req, res) => {
+    try {
+      if (!(await requireModerator(req, res))) return;
+      res.json(await storage.getCommunityOrganizationsForModeration());
+    } catch (error) {
+      console.error("Get community organizations for moderation error:", error);
+      res.status(500).json({ error: "Failed to get community submissions" });
+    }
+  });
+
+  app.patch("/api/moderation/organizations/:organizationId", async (req, res) => {
+    try {
+      if (!(await requireModerator(req, res))) return;
+
+      const parsed = moderateOrganizationSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.flatten() });
+      }
+
+      const { action } = parsed.data;
+      const updates = action === "save"
+        ? { name: parsed.data.name, type: parsed.data.type, sector: parsed.data.sector, state: parsed.data.state }
+        : action === "approve"
+          ? {
+              name: parsed.data.name,
+              type: parsed.data.type,
+              sector: parsed.data.sector,
+              state: parsed.data.state,
+              isApproved: true,
+              isHidden: false,
+            }
+          : action === "hide"
+            ? { isHidden: true }
+            : { isHidden: false };
+      const organization = await storage.updateCommunityOrganization(req.params.organizationId, updates);
+      if (!organization) {
+        return res.status(404).json({ error: "Community organization not found" });
+      }
+      res.json(organization);
+    } catch (error) {
+      console.error("Moderate community organization error:", error);
+      res.status(500).json({ error: "Failed to update community organization" });
     }
   });
 
@@ -258,6 +362,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const existingOrganization = await storage.getOrganizationByName(name);
       if (existingOrganization) {
+        if (existingOrganization.isHidden) {
+          return res.status(409).json({ error: "A listing with this name is hidden while moderators review it." });
+        }
         return res.json(existingOrganization);
       }
 
@@ -283,6 +390,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const validated = insertReportSchema.parse(req.body);
+      const organization = await storage.getOrganization(validated.organizationId);
+      if (!organization || organization.isHidden) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       const report = await storage.createReport({
         ...validated,
         userId,
@@ -311,6 +422,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/reports/organization/:organizationId", async (req, res) => {
     try {
       const { organizationId } = req.params;
+      const organization = await storage.getOrganization(organizationId);
+      if (!organization || organization.isHidden) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       const reports = await storage.getReportsByOrganization(organizationId);
       res.json(reports);
     } catch (error) {
@@ -323,6 +438,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/reports/stats/:organizationId", async (req, res) => {
     try {
       const { organizationId } = req.params;
+      const organization = await storage.getOrganization(organizationId);
+      if (!organization || organization.isHidden) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       const stats = await storage.getOrganizationStats(organizationId);
       res.json(stats);
     } catch (error) {
@@ -337,6 +456,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/messages/:organizationId", async (req, res) => {
     try {
       const { organizationId } = req.params;
+      const organization = await storage.getOrganization(organizationId);
+      if (!organization || organization.isHidden) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       const messages = await storage.getMessagesByOrganization(organizationId);
       res.json(messages.reverse()); // Return in chronological order
     } catch (error) {
@@ -356,6 +479,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { organizationId } = req.params;
+      const organization = await storage.getOrganization(organizationId);
+      if (!organization || organization.isHidden) {
+        return res.status(404).json({ error: "Organization not found" });
+      }
       const follow = await storage.followOrganization(userId, organizationId);
       res.json(follow);
     } catch (error) {

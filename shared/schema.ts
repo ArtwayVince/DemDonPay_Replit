@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   phoneNumber: text("phone_number").notNull().unique(),
   displayName: text("display_name"),
   isVerified: boolean("is_verified").notNull().default(false),
+  isModerator: boolean("is_moderator").notNull().default(false),
   otpCode: text("otp_code"), // Temporary OTP storage
   otpExpiry: timestamp("otp_expiry"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -25,6 +26,7 @@ export const organizations = pgTable("organizations", {
   logoUrl: text("logo_url"),
   isCustom: boolean("is_custom").notNull().default(false), // User-submitted org
   isApproved: boolean("is_approved").notNull().default(true), // For custom orgs
+  isHidden: boolean("is_hidden").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -141,6 +143,25 @@ export const insertOrganizationSchema = createInsertSchema(organizations).pick({
   sector: true,
   state: true,
 });
+
+export const moderateOrganizationSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("save"),
+    name: z.string().trim().min(1).max(150),
+    type: z.enum(["government", "private"]),
+    sector: z.enum(["banking", "telecom", "government", "education", "healthcare", "oil-gas", "other"]),
+    state: z.string().trim().max(100).nullable(),
+  }),
+  z.object({
+    action: z.literal("approve"),
+    name: z.string().trim().min(1).max(150),
+    type: z.enum(["government", "private"]),
+    sector: z.enum(["banking", "telecom", "government", "education", "healthcare", "oil-gas", "other"]),
+    state: z.string().trim().max(100).nullable(),
+  }),
+  z.object({ action: z.literal("hide") }),
+  z.object({ action: z.literal("restore") }),
+]);
 
 export const insertReportSchema = createInsertSchema(reports).pick({
   organizationId: true,
